@@ -49,11 +49,11 @@ pipeline {
             steps {
                 script {
                     sh '''
-                        # Create cache directory
-                        mkdir -p /var/jenkins_home/.cache/trivy
+                        # Create cache directory in workspace
+                        mkdir -p .trivycache
                         
                         # Run Trivy with cache directory
-                        trivy --cache-dir /var/jenkins_home/.cache/trivy fs . > trivyfs.txt || true
+                        trivy --cache-dir .trivycache fs . > trivyfs.txt || true
                     '''
                 }
             }
