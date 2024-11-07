@@ -1,5 +1,12 @@
 pipeline {
     agent any
+    options {
+        parallelsAlwaysFailFast()
+        timestamps()
+        timeout(time: 1, unit: 'HOURS')
+        disableConcurrentBuilds()
+        skipDefaultCheckout(true)  // For better control of checkout
+    }
     tools {
         jdk 'jdk'
         nodejs 'node16'
