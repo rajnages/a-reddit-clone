@@ -1,7 +1,7 @@
 pipeline {
     agent any
     tools {
-        jdk 'jdk'
+        jdk 'jdk17'
         nodejs 'node16'
     }
     environment {
@@ -12,7 +12,7 @@ pipeline {
         DOCKER_PASS = 'dockerhub'
         IMAGE_NAME = "${DOCKER_USER}" + "/" + "${APP_NAME}"
         IMAGE_TAG = "${RELEASE}-${BUILD_NUMBER}"
-        //JENKINS_API_TOKEN = credentials("JENKINS_API_TOKEN")
+        SONAR_CREDS = credentials('sonar-token')
     }
     stages {
         stage('clean workspace') {
@@ -27,17 +27,19 @@ pipeline {
         }
         stage("Sonarqube Analysis") {
             steps {
-                withSonarQubeEnv('sonar') {
-                    sh '''$SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=Reddit-Clone-CI \
-                    -Dsonar.projectKey=jenkins'''
+                withSonarQubeEnv(credentialsId: 'sonar-token', installationName: 'sonarqube-server') {
+                    sh '''${SCANNER_HOME}/bin/sonar-scanner \
+                    -Dsonar.projectName=Reddit-Clone-CI \
+                    -Dsonar.projectKey=Reddit-Clone-CI \
+                    -Dsonar.sources=. \
+                    -Dsonar.host.url=http://50.17.37.181:9000 \
+                    -Dsonar.token=${SONAR_CREDS}'''
                 }
             }
         }
         stage("Quality Gate") {
             steps {
-                script {
-                    waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token'
-                }
+                waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token'
             }
         }
         stage('Install Dependencies') {
@@ -65,10 +67,8 @@ pipeline {
         }
         stage("Trivy Image Scan") {
             steps {
-                script {
-                    sh '''docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image rajnages/reddit-clone-pipeline:latest \
-                        --no-progress --scanners vuln  --exit-code 0 --severity HIGH,CRITICAL --format table > trivyimage.txt'''
-                }
+                sh '''docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image ${IMAGE_NAME}:latest \
+                    --no-progress --scanners vuln  --exit-code 0 --severity HIGH,CRITICAL --format table > trivyimage.txt'''
             }
         }
         stage ('Cleanup Artifacts') {
@@ -79,30 +79,5 @@ pipeline {
                 }
             }
         }
-        // Uncomment if needed:
-        /*
-        stage("Trigger CD Pipeline") {
-            steps {
-                script {
-                    sh "curl -v -k --user DevOps:${JENKINS_API_TOKEN} -X POST -H 'cache-control: no-cache' -H 'content-type: application/x-www-form-urlencoded' --data 'IMAGE_TAG=${IMAGE_TAG}' 'ec2-65-2-187-142.ap-south-1.compute.amazonaws.com:8080/job/Reddit-Clone-CD/buildWithParameters?token=gitops-token'"
-                }
-            }
-        }
-        */
     }
-    
-    // Uncomment if email notifications are needed:
-    /*
-    post {
-        always {
-            emailext attachLog: true,
-                subject: "'${currentBuild.result}'",
-                body: "Project: ${env.JOB_NAME}<br/>" +
-                    "Build Number: ${env.BUILD_NUMBER}<br/>" +
-                    "URL: ${env.BUILD_URL}<br/>",
-                to: 'rajavarapunages@gmail.com',
-                attachmentsPattern: 'trivyfs.txt,trivyimage.txt'
-        }
-    }
-    */
 }
