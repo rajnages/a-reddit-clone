@@ -47,8 +47,16 @@ pipeline {
         }
         stage('TRIVY FS SCAN') {
             steps {
-                sh "trivy fs . > trivyfs.txt"
-             }
-         }
+                script {
+                    sh '''
+                        # Create cache directory
+                        mkdir -p /var/jenkins_home/.cache/trivy
+                        
+                        # Run Trivy with cache directory
+                        trivy --cache-dir /var/jenkins_home/.cache/trivy fs . > trivyfs.txt || true
+                    '''
+                }
+            }
+        }
      }   
 }
